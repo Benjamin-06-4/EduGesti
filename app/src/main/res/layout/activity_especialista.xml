@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+xmlns:app="http://schemas.android.com/apk/res-auto"
+xmlns:tools="http://schemas.android.com/tools"
+android:layout_width="match_parent"
+android:layout_height="match_parent"
+tools:context=".ui.EspecialistaActivity">
+
+<!-- Botón de Asistencia -->
+
+    <ImageView
+        android:id="@+id/ivCloudBackground"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:alpha="0.45"
+        android:scaleType="centerCrop"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.0"
+        app:srcCompat="@drawable/ivcloudbackground" />
+
+    <TextView
+    android:id="@+id/lbl_especialista"
+    android:layout_width="191dp"
+    android:layout_height="38dp"
+    android:text="ESPECIALISTA UGEL"
+    android:textAlignment="viewStart"
+    android:background="?attr/selectableItemBackgroundBorderless"
+    android:textSize="14sp"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintHorizontal_bias="0.213"
+    app:layout_constraintStart_toEndOf="@+id/l_colegio"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintVertical_bias="0.186" />
+
+<TextView
+    android:id="@+id/l_colegio"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="Especialista: "
+    android:textAlignment="center"
+    android:textSize="16sp"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintHorizontal_bias="0.117"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintVertical_bias="0.194" />
+
+<ImageView
+    android:id="@+id/imgFavicon"
+    android:layout_width="246dp"
+    android:layout_height="78dp"
+    android:layout_marginTop="24dp"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintHorizontal_bias="0.496"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toTopOf="parent"
+    app:srcCompat="@drawable/logocorongo" />
+
+<ImageButton
+    android:id="@+id/btc_asistencias_especialista"
+    android:layout_width="100dp"
+    android:layout_height="100dp"
+    android:onClick="asistencia_especialista"
+    android:background="?attr/selectableItemBackgroundBorderless"
+    android:scaleType="centerInside"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintHorizontal_bias="0.18"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintVertical_bias="0.347"
+    app:srcCompat="@drawable/icon_asistencia" />
+
+<TextView
+    android:id="@+id/txt_asistencia_especialista"
+    android:layout_width="120dp"
+    android:layout_height="28dp"
+    android:layout_marginStart="45dp"
+    android:layout_marginTop="8dp"
+    android:text="ASISTENCIAS"
+    android:textAlignment="center"
+    android:textSize="16sp"
+    app:layout_constraintEnd_toStartOf="@+id/txt_fichas_especialistas"
+    app:layout_constraintHorizontal_bias="0.0"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toBottomOf="@+id/btc_asistencias_especialista" />
+
+<ImageButton
+    android:id="@+id/btc_fichas_especialistas"
+    android:layout_width="100dp"
+    android:layout_height="100dp"
+    android:onClick="fichas_especialistas"
+    android:background="?attr/selectableItemBackgroundBorderless"
+    android:scaleType="centerInside"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintHorizontal_bias="0.774"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintVertical_bias="0.347"
+    app:srcCompat="@drawable/icon_fichas" />
+
+<ImageButton
+    android:id="@+id/btc_evidencias_especialistas"
+    android:layout_width="100dp"
+    android:layout_height="100dp"
+    android:layout_marginTop="64dp"
+    android:onClick="evidencia_especialista"
+    android:scaleType="centerInside"
+    android:background="?attr/selectableItemBackgroundBorderless"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintHorizontal_bias="0.482"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintVertical_bias="0.569"
+    app:srcCompat="@drawable/icon_camara" />
+
+<TextView
+    android:id="@+id/l_ugel"
+    android:layout_width="171dp"
+    android:layout_height="59dp"
+    android:layout_marginTop="132dp"
+    android:hint="@string/labelUgel"
+    android:textAlignment="center"
+    android:textSize="20sp"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintVertical_bias="0.907" />
+
+<TextView
+    android:id="@+id/txt_fichas_especialistas"
+    android:layout_width="100dp"
+    android:layout_height="28dp"
+    android:layout_marginTop="8dp"
+    android:layout_marginEnd="68dp"
+    android:text="FICHAS"
+    android:textAlignment="center"
+    android:textSize="16sp"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintTop_toBottomOf="@+id/btc_fichas_especialistas" />
+
+<TextView
+    android:id="@+id/txt_evidencias_especialistas"
+    android:layout_width="110dp"
+    android:layout_height="28dp"
+    android:text="EVIDENCIAS"
+    android:textAlignment="center"
+    android:textSize="16sp"
+    app:layout_constraintBottom_toTopOf="@+id/l_ugel"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintHorizontal_bias="0.482"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toBottomOf="@+id/btc_evidencias_especialistas"
+    app:layout_constraintVertical_bias="0.065" />
+</androidx.constraintlayout.widget.ConstraintLayout>

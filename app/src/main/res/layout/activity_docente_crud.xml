@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Fondo difuminado -->
+    <ImageView
+        android:id="@+id/ivCloudBackground"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.45"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ivcloudbackground"/>
+
+    <!-- Contenido desplazable -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <!-- Header: Colegio: [nombre] -->
+            <LinearLayout
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="25dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/tvColegio"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Colegio:"
+                    android:textColor="@color/rgb_azulnoche"
+                    android:textSize="22sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/tvInstitution"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="*colegio*"
+                    android:textColor="@color/rgb_azulnoche"
+                    android:textSize="16sp"/>
+            </LinearLayout>
+
+            <!-- Fila DNI + botones Buscar y Eliminar -->
+            <LinearLayout
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="12dp"
+                android:gravity="center_vertical">
+
+                <EditText
+                    android:id="@+id/etDni"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:hint="DNI"
+                    android:inputType="number"
+                    android:maxLength="8"/>
+
+                <ImageView
+                    android:id="@+id/btnBuscar"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/icon_buscar"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"/>
+
+                <ImageView
+                    android:id="@+id/btnEliminar"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/icon_eliminar"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"/>
+            </LinearLayout>
+
+            <!-- Apellido Paterno -->
+            <EditText
+                android:id="@+id/etDocente"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Nombre del docente"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- Nivel Educativo -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Nivel Educativo"
+                android:layout_marginBottom="4dp"/>
+
+            <Spinner
+                android:id="@+id/spNivelEducativo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/niveles_educativos"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Cargo Laboral -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Cargo Laboral"
+                android:layout_marginBottom="4dp"/>
+
+            <!-- Jornada Laboral -->
+            <EditText
+                android:id="@+id/etCargoLaboral"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Cargo laboral del docente"
+                android:inputType="number"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Situación Laboral -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Situación Laboral"
+                android:layout_marginBottom="4dp"/>
+
+            <Spinner
+                android:id="@+id/spSituacionLaboral"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/situaciones_laborales"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Jornada Laboral -->
+            <EditText
+                android:id="@+id/etJornada"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Jornada Laboral (horas)"
+                android:inputType="number"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Sexo -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Sexo"
+                android:layout_marginBottom="4dp"/>
+
+            <Spinner
+                android:id="@+id/spSexo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/sexos"
+                android:layout_marginBottom="20dp"/>
+
+            <!-- Botón Guardar -->
+            <Button
+                android:id="@+id/btnGuardar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Guardar"
+                android:enabled="false"
+                android:layout_marginBottom="16dp"/>
+
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>

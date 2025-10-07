@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="horizontal"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="5dp">
+
+    <EditText
+        android:id="@+id/edit_docente_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="@drawable/round_grey"
+        android:textSize="14sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:padding="8dp"
+        android:focusable="false"/>
+
+    <ImageButton
+        android:id="@+id/btn_horario"
+        android:layout_width="45dp"
+        android:layout_height="45dp"
+        android:layout_marginStart="10dp"
+        android:scaleType="centerInside"
+        app:srcCompat="@drawable/icon_horarios"/>
+</LinearLayout>

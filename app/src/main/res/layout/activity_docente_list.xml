@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 1) Fondo -->
+    <ImageView
+        android:id="@+id/ivCloudBackground"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.45"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ivcloudbackground"/>
+
+    <!-- 2) Contenedor principal -->
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <!-- 3) Header: Colegio: [nombre] -->
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="25dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvColegio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Colegio:"
+                android:textColor="@color/rgb_azulnoche"
+                android:textSize="22sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/tvInstitution"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="*colegio*"
+                android:textColor="@color/rgb_azulnoche"
+                android:textSize="16sp"/>
+        </LinearLayout>
+
+        <!-- 4) Tu ListView -->
+        <ListView
+            android:id="@+id/lvDocentes"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="14dp"
+            android:layout_weight="1"
+            android:divider="@android:color/transparent"
+            android:dividerHeight="8dp" />
+    </LinearLayout>
+</FrameLayout>

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/tvNombreIE"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Colegio:"
+        android:textColor="@color/rgb_azulnoche"
+        android:textSize="14sp"
+        android:textStyle="bold"/>
+
+    <EditText
+        android:id="@+id/etNombreIE"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Nombre I.E." />
+
+    <TextView
+        android:id="@+id/tvCodigoModular"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Código Modular:"
+        android:textColor="@color/rgb_azulnoche"
+        android:textSize="14sp"
+        android:textStyle="bold"/>
+
+    <EditText
+        android:id="@+id/etCodigoModular"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Código Local" />
+
+    <TextView
+        android:id="@+id/tvCodigoLocal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Código Local:"
+        android:textColor="@color/rgb_azulnoche"
+        android:textSize="14sp"
+        android:textStyle="bold"/>
+
+    <EditText
+        android:id="@+id/etCodigoLocal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Código Local" />
+
+    <TextView
+        android:id="@+id/tvNivel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Nivel Educativo:"
+        android:textColor="@color/rgb_azulnoche"
+        android:textSize="14sp"
+        android:textStyle="bold"/>
+
+    <EditText
+        android:id="@+id/etNivel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Nivel" />
+
+    <TextView
+        android:id="@+id/tvDirector"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="DNI Director:"
+        android:textColor="@color/rgb_azulnoche"
+        android:textSize="14sp"
+        android:textStyle="bold"/>
+
+    <EditText
+        android:id="@+id/etDirector"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Director" />
+</LinearLayout>

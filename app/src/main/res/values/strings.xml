@@ -1,0 +1,51 @@
+<resources>
+    <string name="app_name">EduGestión 360</string>
+    <string name="logo_desc">Logo UGEL Corongo - Perú</string>
+    <string name="labelUgel">UGEL CORONGO</string>
+
+    <!-- Array para niveles educativos -->
+    <string-array name="niveles_educativos">
+        <item>Seleccione...</item>
+        <item>Administración</item>
+        <item>Inicial - Jardín</item>
+        <item>Inicial - Cuna-jardín</item>
+        <item>Inicial - Programa no escolarizado</item>
+        <item>Primaria</item>
+        <item>Básica Alternativa-Inicial e Intermedio</item>
+        <item>Básica Alternativa-Avanzado</item>
+        <item>Básica Especial</item>
+        <item>Secundaria</item>
+        <item>Técnico Productiva</item>
+        <item>Básica Especial-Inicial</item>
+        <item>Básica Especial-Primaria</item>
+    </string-array>
+
+    <!-- Array para cargos laborales -->
+    <string-array name="cargos_laborales">
+        <item>Seleccione...</item>
+        <item>DOCENTE</item>
+        <item>DOCENTE RESPONSABLE</item>
+        <item>SECRETARIA(O)</item>
+        <item>PSICÓLOGO(A)</item>
+        <item>PERSONAL DE VIGILANCIA</item>
+        <item>PERSONAL DE MANTENIMIENTO</item>
+    </string-array>
+
+    <!-- Array para situaciones laborales -->
+    <string-array name="situaciones_laborales">
+        <item>Seleccione...</item>
+        <item>DESIGNADO</item>
+        <item>ENCARGADO</item>
+        <item>NOMBRADO</item>
+        <item>DESIG. CONFIAN.</item>
+        <item>CONTRATADO</item>
+        <item>DESTACADO</item>
+    </string-array>
+
+    <!-- Array para sexos -->
+    <string-array name="sexos">
+        <item>Seleccione...</item>
+        <item>Masculino</item>
+        <item>Femenino</item>
+    </string-array>
+</resources>

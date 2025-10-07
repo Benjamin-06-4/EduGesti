@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <!-- Botón para elegir el archivo PDF -->
+    <Button
+        android:id="@+id/btnElegirArchivo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Elegir PDF"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- Label para mostrar el nombre del archivo seleccionado -->
+    <TextView
+        android:id="@+id/tvNombreArchivo"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Ningún archivo seleccionado"
+        app:layout_constraintTop_toBottomOf="@id/btnElegirArchivo"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:paddingTop="8dp"/>
+
+    <!-- 3) Spinner de colegios -->
+    <Spinner
+        android:id="@+id/spinnerColegios"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:layout_constraintTop_toBottomOf="@id/tvNombreArchivo"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- Campo para un comentario opcional -->
+    <EditText
+        android:id="@+id/etComentarioPdf"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:hint="Comentario (opcional)"
+        android:inputType="textMultiLine"
+        app:layout_constraintTop_toBottomOf="@id/spinnerColegios"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:minLines="3"
+        android:gravity="top"
+        android:paddingTop="8dp"/>
+
+    <!-- Botón para subir el PDF -->
+    <Button
+        android:id="@+id/btnSubirPdf"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Subir"
+        app:layout_constraintTop_toBottomOf="@id/etComentarioPdf"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="16dp"/>
+
+    <!-- Botón para cancelar -->
+    <Button
+        android:id="@+id/btnCancelarPdf"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Cancelar"
+        app:layout_constraintTop_toBottomOf="@id/btnCancelarPdf"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

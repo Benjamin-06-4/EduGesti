@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <!-- 1) Encabezado: Ficha -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/tvFichaLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Ficha:"
+            android:textColor="@color/rgb_azulnoche"
+            android:textSize="14sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:id="@+id/tvFichaName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="--"/>
+    </LinearLayout>
+
+    <!-- 2) Encabezado: Colegio -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/tvColegioLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Colegio:"
+            android:textColor="@color/rgb_azulnoche"
+            android:textSize="14sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:id="@+id/tvColegioName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="--"/>
+    </LinearLayout>
+
+    <!-- 3) Label estático -->
+    <TextView
+        android:id="@+id/tvListaLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Lista de docentes"
+        android:textColor="@color/rgb_azulnoche"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- 4) ListView -->
+    <ListView
+        android:id="@+id/lvDocentes"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <!-- 5) Botón Nueva Ficha -->
+    <Button
+        android:id="@+id/btnNuevaFicha"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Nueva Ficha"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="24dp"/>
+</LinearLayout>
