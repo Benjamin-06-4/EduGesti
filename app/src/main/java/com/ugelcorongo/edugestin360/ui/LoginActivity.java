@@ -97,7 +97,6 @@ public class LoginActivity extends AppCompatActivity {
                                 next = new Intent(LoginActivity.this, DocenteActivity.class);
                         }
                         // Aquí metes el docidentidad
-                        Log.d("FETCH_ERROR","LoginActivity putExtra: " + docident);
                         next.putExtra(EXTRA_DOCIDENTIDAD, docident);
 
                         startActivity(next);

@@ -14,10 +14,12 @@
         android:layout_weight="1"
         android:background="@drawable/round_grey"
         android:textSize="14sp"
-        android:maxLines="2"
-        android:ellipsize="end"
         android:padding="8dp"
-        android:focusable="false"/>
+        android:maxLines="6"
+        android:ellipsize="end"
+        android:focusable="false"
+        android:scrollbars="vertical"
+        android:lineSpacingExtra="2dp" />
 
     <ImageButton
         android:id="@+id/btn_horario"

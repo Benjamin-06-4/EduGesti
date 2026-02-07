@@ -8,8 +8,10 @@ public class Ficha {
     private String estado;
     private String visita;     // "si"/"no"
     private String tipoFicha;  // "Director" o "Docente"
+    private String area; // "AGA" | "AGI" | "AGP"
 
-    public Ficha(String id, String nombre, String fechaInicio, String fechaTermino, String estado, String visita, String tipoFicha) {
+    public Ficha(String id, String nombre, String fechaInicio, String fechaTermino,
+                 String estado, String visita, String tipoFicha, String area) {
         this.id = id;
         this.nombre = nombre;
         this.fechaInicio = fechaInicio;
@@ -17,6 +19,7 @@ public class Ficha {
         this.estado = estado;
         this.visita = visita;
         this.tipoFicha = tipoFicha;
+        this.area = area;
     }
 
     public String getId() {
@@ -73,5 +76,13 @@ public class Ficha {
 
     public void setTipoFicha(String tipoFicha) {
         this.tipoFicha = tipoFicha;
+    }
+
+    public String getArea() {
+        return area;
+    }
+
+    public void setArea(String area) {
+        this.area = area;
     }
 }

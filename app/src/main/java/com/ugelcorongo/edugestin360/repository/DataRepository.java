@@ -147,9 +147,10 @@ public class DataRepository {
         for (String line : csv.split("\\r?\\n")) {
             String[] p = line.split(";");
             if (p.length < 8 || !"ACTIVO".equalsIgnoreCase(p[7])) continue;
+            String area = p[7].trim();
             out.add(new Ficha(
                     p[0], p[1], p[2], p[3],
-                    p[4], p[5], p[6]
+                    p[4], p[5], p[6], area
             ));
         }
         return out;

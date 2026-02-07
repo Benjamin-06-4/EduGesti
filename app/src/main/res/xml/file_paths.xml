@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <files-path name="evidencias" path="."/>
+    <external-files-path name="reportes" path="Download/reportes/"/>
+    <external-files-path name="downloads" path="Download/"/>
+    <files-path name="files" path="."/>
 </paths>

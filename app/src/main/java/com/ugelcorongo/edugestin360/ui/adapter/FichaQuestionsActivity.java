@@ -250,6 +250,8 @@ public class FichaQuestionsActivity extends AppCompatActivity implements Section
 
         // TEXT + SINGLE_CHOICE + COMMENT
         for (Pregunta p : allPreguntas) {
+            String idp = p.getIdPregunta();
+            params.put("idpregunta", idp);
             String base = "q_" + p.getIdPregunta();
             switch(p.getTipoPregunta()) {
                 case "TEXT":

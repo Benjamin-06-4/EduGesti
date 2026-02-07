@@ -4,6 +4,7 @@ import com.ugelcorongo.edugestin360.R;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -26,19 +27,21 @@ import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.viewpager2.widget.ViewPager2;
 import androidx.core.app.ActivityCompat;
+
 import com.ugelcorongo.edugestin360.utils.LocationUploadService;
 
 import com.google.android.material.tabs.TabLayout;
 
-import java.io.IOException;
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 
 import com.ugelcorongo.edugestin360.domain.models.ColegioInfo;
 import com.ugelcorongo.edugestin360.domain.models.Especialista;
 import com.ugelcorongo.edugestin360.domain.models.Ficha;
 import com.ugelcorongo.edugestin360.managers.FileUploadManager;
-import com.ugelcorongo.edugestin360.managers.file.FileUpdater;
 import com.ugelcorongo.edugestin360.managers.file.FileUpdaterFactory;
 import com.ugelcorongo.edugestin360.managers.upload.AttendanceUploadManager;
 import com.ugelcorongo.edugestin360.managers.upload.ImageUploadManager;
@@ -50,13 +53,16 @@ import com.ugelcorongo.edugestin360.ui.adapter.FichasAdapter;
 import com.ugelcorongo.edugestin360.ui.viewmodel.EspecialistaViewModel;
 import com.ugelcorongo.edugestin360.utils.LocationProvider;
 import com.ugelcorongo.edugestin360.utils.NetworkUtil;
-import com.ugelcorongo.edugestin360.utils.RawFileReader;
 import com.ugelcorongo.edugestin360.utils.URLPostHelper;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class EspecialistaActivity extends BaseRoleActivity {
 
     // UI
-    private ImageButton btnAsistencia, btnFichas, btnEvidencias;
+    private ImageButton btnAsistencia, btnFichas, btnEvidencias, btnReportes, btnGenerate;
+    private ImageButton btnMonitoreoDirectivo, btnMonitoreoDocente;
     private TextView lbl_especialista;
     private TabLayout tabLayout;
     private ViewPager2 viewPager;
@@ -85,10 +91,17 @@ public class EspecialistaActivity extends BaseRoleActivity {
     private ActivityResultLauncher<Intent> cameraLauncher;
     private ActivityResultLauncher<String> cameraPermLauncher;
     private ActivityResultLauncher<String> locationPermissionLauncher;
+    private static final String REPORTS_CHANNEL_ID = "reports_channel_id";
+    private static final int REPORT_NOTIFICATION_ID = 0;
     private Bitmap evidenciaBitmap;
     private Uri tempImageUri;
     private ImageView ivEvidenciaPreview;
-    private static final double MAX_DISTANCE_M = 100.0;
+    private volatile String lastGeneratedReportPath;
+    private BroadcastReceiver providersChangeReceiver;
+    private volatile boolean isRecapturing = false;
+    private boolean lastGpsEnabledState = false;
+    private boolean lastPermissionState = false;
+    private static final double MAX_DISTANCE_M = 150.0;
     private static final int REQUEST_LOCATION_PERMISSION = 100;
     private static final int PERM_REQUEST_ALL = 300;
     private static final int PERM_REQUEST_BACKGROUND = 301;
@@ -96,6 +109,10 @@ public class EspecialistaActivity extends BaseRoleActivity {
     private static final int REQUEST_CAMERA = 101;
     private static final int REQUEST_IMAGE_CAPTURE = 102;
     private static final int REQ_LOC = 200;
+
+    private static final String PREFS_NAME = "app_consent_prefs";
+    private static final String KEY_CONSENT_ESPECIALISTA = "consent_especialista";
+    private static final String KEY_CONSENT_DOCENTE = "consent_docente";
     @Override
     protected Map<String, String> getFileUrlMapping() {
         Map<String, String> m = new LinkedHashMap<>();
@@ -173,10 +190,10 @@ public class EspecialistaActivity extends BaseRoleActivity {
                 String[] p = line.split(";");
 
                 // id[0]; nombre[1]; fi[2]; ft[3]; estado[4], nrovisita[5]; tipoFicha[6];
-                if (p.length < 7) continue;
+                if (p.length < 8) continue;
                 Ficha f = new Ficha(
                         p[0], p[1], p[2], p[3],
-                        p[4], p[5], p[6]
+                        p[4], p[5], p[6], p[7]
                 );
                 fichas.add(f);
             }
@@ -189,6 +206,12 @@ public class EspecialistaActivity extends BaseRoleActivity {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_especialista);
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{ Manifest.permission.POST_NOTIFICATIONS }, 400);
+            }
+        }
 
         // Extras
         docIdentidad = getIntent().getStringExtra(LoginActivity.EXTRA_DOCIDENTIDAD);
@@ -217,8 +240,10 @@ public class EspecialistaActivity extends BaseRoleActivity {
 
     private void bindViews() {
         btnAsistencia = findViewById(R.id.btc_asistencias_especialista);
-        btnFichas     = findViewById(R.id.btc_fichas_especialistas);
+        btnMonitoreoDirectivo = findViewById(R.id.btc_monitoreo_directivo);
+        btnMonitoreoDocente   = findViewById(R.id.btc_monitoreo_docente);
         btnEvidencias = findViewById(R.id.btc_evidencias_especialistas);
+        btnReportes = findViewById(R.id.btc_reportes_especialistas);
         tabLayout     = findViewById(R.id.tabSections);
         viewPager     = findViewById(R.id.vpSections);
     }
@@ -245,48 +270,65 @@ public class EspecialistaActivity extends BaseRoleActivity {
                 new ActivityResultContracts.RequestPermission(),
                 granted -> {
                     if (!granted) {
-                        Toast.makeText(
-                                this,
-                                "Permiso de ubicación denegado",
-                                Toast.LENGTH_SHORT
-                        ).show();
+                        //Toast.makeText(
+                                //this,
+                                //"Permiso de ubicación denegado",
+                                //Toast.LENGTH_SHORT
+                        //).show();
+                        showPermissionRequiredDialog();
+                    } else {
+                        recaptureLocationAfterPermission();
                     }
-                    // Si ya estaba granted, el flujo btnSubir se encargará de llamar LocationProvider
                 }
         );
     }
 
     private interface BestLocCallback { void onResult(Location best); }
 
-    private void getBestLocation(final int maxAttempts, final long attemptIntervalMs, final long maxAgeMs, final BestLocCallback cb) {
-        final List<Location> samples = new ArrayList<>();
-        final int[] tries = {0};
+    private void getBestLocation(final long timeoutMs, final BestLocCallback cb) {
+        final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+        final LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (lm == null) { cb.onResult(null); return; }
 
-        final Runnable attempt = new Runnable() {
-            @Override
-            public void run() {
-                tries[0]++;
-                LocationProvider.requestSingle(EspecialistaActivity.this, loc -> {
-                    if (loc != null) samples.add(loc);
-                    // si ya tenemos una medición suficientemente precisa, terminamos temprano
-                    Location best = selectBest(samples, maxAgeMs);
-                    if (best != null && best.hasAccuracy() && best.getAccuracy() <= 20f) {
+        final List<Location> samples = Collections.synchronizedList(new ArrayList<>());
+        final android.location.LocationListener listener = new android.location.LocationListener() {
+            @Override public void onLocationChanged(Location location) { if (location != null) samples.add(location); }
+            @Override public void onStatusChanged(String provider, int status, Bundle extras) {}
+            @Override public void onProviderEnabled(String provider) {}
+            @Override public void onProviderDisabled(String provider) {}
+        };
+
+        try {
+            try { lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0f, listener, android.os.Looper.getMainLooper()); } catch (SecurityException ignored) {}
+
+            final long start = System.currentTimeMillis();
+            final Runnable timeoutRunnable = new Runnable() {
+                @Override public void run() {
+                    try { lm.removeUpdates(listener); } catch (Exception ignored) {}
+                    Location best = selectBest(samples, timeoutMs);
+                    cb.onResult(best);
+                }
+            };
+            h.postDelayed(timeoutRunnable, timeoutMs);
+
+            final Runnable evaluate = new Runnable() {
+                @Override public void run() {
+                    Location best = selectBest(samples, timeoutMs);
+                    if (best != null && best.hasAccuracy() && best.getAccuracy() <= 15f) {
+                        h.removeCallbacks(timeoutRunnable);
+                        try { lm.removeUpdates(listener); } catch (Exception ignored) {}
                         cb.onResult(best);
                         return;
                     }
-                    if (tries[0] >= maxAttempts) {
-                        // devolver la mejor que tengamos, puede ser null
-                        cb.onResult(selectBest(samples, maxAgeMs));
-                        return;
-                    }
-                    // programar siguiente intento después de interval
-                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this, attemptIntervalMs);
-                });
-            }
-        };
-
-        // iniciar primer intento
-        attempt.run();
+                    if (System.currentTimeMillis() - start >= timeoutMs) return;
+                    h.postDelayed(this, 500L);
+                }
+            };
+            h.postDelayed(evaluate, 500L);
+        } catch (Throwable t) {
+            try { lm.removeUpdates(listener); } catch (Exception ignored) {}
+            cb.onResult(null);
+        }
     }
 
     private Location selectBest(List<Location> samples, long maxAgeMs) {
@@ -312,7 +354,70 @@ public class EspecialistaActivity extends BaseRoleActivity {
 
     private void setupListeners() {
         btnAsistencia.setOnClickListener(v -> startAttendanceFlow());
-        btnFichas    .setOnClickListener(v -> showFichasDialog());
+        // Listener para Monitoreo Directivo (tipo "Director")
+        btnMonitoreoDirectivo.setOnClickListener(v -> {
+            debugMissingPermissionsAndSettings();
+
+            if (!isLocationProviderEnabled()) {
+                openLocationSettings();
+                return;
+            }
+            if (!hasLocationPermission()) {
+                requestLocationPermission();
+                return;
+            }
+
+            // Obtener mejor ubicación antes de permitir elegir área
+            getBestLocation(8000L, bestLoc -> {
+                if (bestLoc == null) {
+                    runOnUiThread(() -> Toast.makeText(
+                            EspecialistaActivity.this,
+                            "No se obtuvo ubicación precisa. Intente nuevamente.",
+                            Toast.LENGTH_LONG
+                    ).show());
+                    return;
+                }
+
+                WorkLocation chosen = findNearestAllowAnyDistance(bestLoc);
+
+                // En este punto colegioLocalizado/colegioId/colegioInfo ya están actualizados
+                runOnUiThread(() -> showMonitoreoAreaDialog("Director"));
+            });
+        });
+
+        // Listener para Monitoreo Docente (tipo "Docente")
+        btnMonitoreoDocente.setOnClickListener(v -> {
+            debugMissingPermissionsAndSettings();
+
+            if (!isLocationProviderEnabled()) {
+                openLocationSettings();
+                return;
+            }
+            if (!hasLocationPermission()) {
+                requestLocationPermission();
+                return;
+            }
+
+            // Obtener mejor ubicación antes de permitir elegir área
+            getBestLocation(8000L, bestLoc -> {
+                if (bestLoc == null) {
+                    runOnUiThread(() -> Toast.makeText(
+                            EspecialistaActivity.this,
+                            "No se obtuvo ubicación precisa. Intente nuevamente.",
+                            Toast.LENGTH_LONG
+                    ).show());
+                    return;
+                }
+
+                WorkLocation chosen = findNearestAllowAnyDistance(bestLoc);
+
+                // En este punto colegioLocalizado/colegioId/colegioInfo ya están actualizados por findNearest
+                runOnUiThread(() -> showMonitoreoAreaDialog("Docente"));
+            });
+        });
+
+        btnReportes.setOnClickListener(v -> showReportesDialog());
+
         btnEvidencias.setOnClickListener(v -> showEvidenciaDialog());
     }
 
@@ -326,19 +431,18 @@ public class EspecialistaActivity extends BaseRoleActivity {
         }
         if (!hasLocationPermission()) {
             requestLocationPermission();
+            ensureConsentAndRequestLocation("Especialista");
             return;
         }
 
-        getBestLocation(3, 700L, 10_000L, bestLoc -> {
+        getBestLocation(8000L, bestLoc -> {
             if (bestLoc == null) {
                 runOnUiThread(() -> Toast.makeText(this, "No se obtuvo ubicación precisa. Intente nuevamente.", Toast.LENGTH_LONG).show());
                 return;
             }
-            WorkLocation chosen = findNearest(bestLoc);
-            if (chosen == null) {
-                runOnUiThread(() -> Toast.makeText(this, "No dentro de rango (" + MAX_DISTANCE_M + "m)", Toast.LENGTH_LONG).show());
-                return;
-            }
+
+            WorkLocation chosen = findNearestAllowAnyDistance(bestLoc);
+
             String tipo = getNextTipoRegistro(colegioLocalizado);
             if (tipo == null) {
                 runOnUiThread(() -> Toast.makeText(this, "Ya registraste hoy en " + colegioLocalizado, Toast.LENGTH_LONG).show());
@@ -433,58 +537,213 @@ public class EspecialistaActivity extends BaseRoleActivity {
         });
     }
 
-    // ← 2) FICHAS ------------------------------------------------------
+    private void showMonitoreoAreaDialog(String tipoFichaFilter) {
+        if (tipoFichaFilter == null) return;
 
-    private void showFichasDialog() {
-        debugMissingPermissionsAndSettings(); // <-- llamada previa
-        if (!isLocationProviderEnabled()) {
-            openLocationSettings();
-            return;
-        }
-        if (!hasLocationPermission()) {
-            requestLocationPermission();
-            return;
-        }
-
-        // 1) Pide ubicación y solo allí inflamos el diálogo
-        getBestLocation(3, 700L, 10_000L, bestLoc -> {
-            if (bestLoc == null) {
-                runOnUiThread(() -> Toast.makeText(this, "No se obtuvo ubicación precisa. Intente nuevamente.", Toast.LENGTH_LONG).show());
+        if (tipoFichaFilter.equalsIgnoreCase("Docente")) {
+            // Para Docente: listar directamente las fichas filtradas solo por tipo
+            List<Ficha> filtered = filterFichasByTipo("Docente");
+            if (filtered.isEmpty()) {
+                Toast.makeText(this, "No hay fichas para Docente", Toast.LENGTH_LONG).show();
                 return;
             }
-            WorkLocation chosen = findNearest(bestLoc);
-            if (chosen == null) {
-                runOnUiThread(() -> Toast.makeText(this, "No dentro de rango (" + MAX_DISTANCE_M + "m)", Toast.LENGTH_LONG).show());
-                return;
-            }
+            showFichasListDialog(filtered);
+            return;
+        }
 
-            runOnUiThread(() -> {
-                View popup = getLayoutInflater().inflate(R.layout.dialog_fichas, null);
-                ListView lv = popup.findViewById(R.id.listFichas);
-                FichasAdapter adapter = new FichasAdapter(
-                        this,
-                        fichas,
-                        colegioInfo,
-                        colegioLocalizado,
-                        colegioId + "",
-                        especialistaName,
-                        "Especialista",
-                        especialistaId,
-                        docIdentidad,
-                        insta_especialista
-                );
-                lv.setAdapter(adapter);
-                new AlertDialog.Builder(this)
-                        .setTitle("Selecciona Ficha (" + colegioLocalizado + ")")
-                        .setView(popup)
-                        .setNegativeButton("Cerrar", (d,i)->d.dismiss())
-                        .show();
+        // Si no es Docente (ej. Director) mantenemos el flujo por áreas
+        String[] areas = new String[] { "AGA", "AGI", "AGP" };
+
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle("Selecciona Área Correspondiente")
+                .setCancelable(true);
+
+        LinearLayout ll = new LinearLayout(this);
+        ll.setOrientation(LinearLayout.VERTICAL);
+        int padding = (int)(16 * getResources().getDisplayMetrics().density);
+        ll.setPadding(padding,padding,padding,padding);
+
+        for (String area : areas) {
+            Button btn = new Button(this);
+            btn.setText(area);
+            btn.setOnClickListener(v -> {
+                List<Ficha> filtered = filterFichas(tipoFichaFilter, area);
+                if (filtered.isEmpty()) {
+                    Toast.makeText(this, "No hay fichas para " + tipoFichaFilter + " / " + area, Toast.LENGTH_LONG).show();
+                } else {
+                    showFichasListDialog(filtered);
+                }
             });
+            ll.addView(btn);
+        }
+
+        AlertDialog dlg = b.setView(ll).create();
+        dlg.show();
+    }
+
+    private List<Ficha> filterFichas(String tipoFichaFilter, String areaFilter) {
+        List<Ficha> out = new ArrayList<>();
+        if (fichas == null) return out;
+        for (Ficha f : fichas) {
+            if (f == null) continue;
+            String tipo = f.getTipoFicha() != null ? f.getTipoFicha().trim() : "";
+            String area = f.getArea() != null ? f.getArea().trim() : "";
+            if (tipo.equalsIgnoreCase(tipoFichaFilter) && area.equalsIgnoreCase(areaFilter)) {
+                out.add(f);
+            }
+        }
+        return out;
+    }
+
+    private void showFichasListDialog(List<Ficha> filteredFichas) {
+        runOnUiThread(() -> {
+            View popup = getLayoutInflater().inflate(R.layout.dialog_fichas, null);
+            ListView lv = popup.findViewById(R.id.listFichas);
+            // crear adapter con la lista filtrada
+            FichasAdapter adapter = new FichasAdapter(
+                    this,
+                    filteredFichas,
+                    colegioInfo,
+                    colegioLocalizado,
+                    colegioId + "",
+                    especialistaName,
+                    "Especialista",
+                    especialistaId,
+                    docIdentidad,
+                    insta_especialista
+            );
+            lv.setAdapter(adapter);
+            new AlertDialog.Builder(this)
+                    .setTitle("Selecciona Ficha (" + colegioLocalizado + ")")
+                    .setView(popup)
+                    .setNegativeButton("Cerrar", (d,i)->d.dismiss())
+                    .show();
         });
     }
 
-    // ← 3) EVIDENCIAS --------------------------------------------------
+    private void showReportesDialog() {
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_reportes_especialistas, null);
 
+        Spinner spTipo    = dialogView.findViewById(R.id.spTipoFicha);
+        Spinner spArea    = dialogView.findViewById(R.id.spArea);
+        Spinner spFicha   = dialogView.findViewById(R.id.spFicha);
+        AutoCompleteTextView actColegio = dialogView.findViewById(R.id.actColegio);
+        Spinner spMes     = dialogView.findViewById(R.id.spMes);
+        Spinner spAno     = dialogView.findViewById(R.id.spAno);
+        Button btnGenerate = dialogView.findViewById(R.id.btnGenerateReport);
+        Button btnCancel = dialogView.findViewById(R.id.btnCancelReport);
+
+        // Tipo
+        String[] tipos = new String[] { "Docente", "Director" };
+        ArrayAdapter<String> tipoAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, tipos);
+        tipoAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spTipo.setAdapter(tipoAdapter);
+
+        // Area
+        String[] areas = new String[] { "AGA", "AGI", "AGP" };
+        ArrayAdapter<String> areaAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, areas);
+        areaAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spArea.setAdapter(areaAdapter);
+
+        // Mes
+        String[] meses = new java.text.DateFormatSymbols(Locale.getDefault()).getMonths();
+        String[] meses12 = Arrays.copyOf(meses, 12);
+        ArrayAdapter<String> mesAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, meses12);
+        mesAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spMes.setAdapter(mesAdapter);
+        spMes.setSelection(Calendar.getInstance().get(Calendar.MONTH));
+
+        // Año (últimos 6)
+        int currentYear = Calendar.getInstance().get(Calendar.YEAR);
+        List<String> anos = new ArrayList<>();
+        for (int y = currentYear; y >= currentYear - 5; y--) anos.add(String.valueOf(y));
+        ArrayAdapter<String> anoAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, anos);
+        anoAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spAno.setAdapter(anoAdapter);
+
+        // Colegio (searchable)
+        List<String> colegioNames = new ArrayList<>();
+        for (WorkLocation w : workLocations) colegioNames.add(w.getName());
+        ArrayAdapter<String> colegioAdapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, colegioNames);
+        actColegio.setAdapter(colegioAdapter);
+        actColegio.setThreshold(1);
+
+        // Fichas initial fill (all)
+        List<Ficha> allFichas = fichas != null ? fichas : new ArrayList<>();
+        List<String> fichaNames = new ArrayList<>();
+        for (Ficha f : allFichas) fichaNames.add(f.getNombre());
+        if (fichaNames.isEmpty()) fichaNames.add("No hay fichas");
+        ArrayAdapter<String> fichaAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, fichaNames);
+        fichaAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spFicha.setAdapter(fichaAdapter);
+
+        // Helper to refill fichas
+        AdapterView.OnItemSelectedListener refillFichasListener = new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String tipoSel = (String) spTipo.getSelectedItem();
+                String areaSel = spArea.getSelectedItem() != null ? (String) spArea.getSelectedItem() : "";
+                List<Ficha> filtered = filterFichasForDialog(tipoSel, areaSel);
+                List<String> names = new ArrayList<>();
+                for (Ficha f : filtered) names.add(f.getNombre());
+                if (names.isEmpty()) names.add("No hay fichas");
+                ArrayAdapter<String> a = new ArrayAdapter<>(EspecialistaActivity.this, android.R.layout.simple_spinner_item, names);
+                a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                spFicha.setAdapter(a);
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        };
+
+        spTipo.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                boolean isDocente = "Docente".equalsIgnoreCase((String) spTipo.getSelectedItem());
+                spArea.setEnabled(!isDocente);
+                spArea.setAlpha(isDocente ? 0.5f : 1f);
+                refillFichasListener.onItemSelected(spTipo, null, position, id);
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        spArea.setOnItemSelectedListener(refillFichasListener);
+
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .create();
+
+        btnCancel.setOnClickListener(v -> dlg.dismiss());
+
+        btnGenerate.setOnClickListener(v -> {
+            String tipoSel = (String) spTipo.getSelectedItem();
+            String areaSel = spArea.isEnabled() ? (String) spArea.getSelectedItem() : "";
+            String fichaSel = spFicha.getSelectedItem() != null ? (String) spFicha.getSelectedItem() : "";
+            String colegioSel = actColegio.getText().toString().trim();
+            String mesSel = (String) spMes.getSelectedItem();
+            String anoSel = (String) spAno.getSelectedItem();
+
+            Ficha chosenFicha = null;
+            for (Ficha f : allFichas) if (f.getNombre().equalsIgnoreCase(fichaSel)) { chosenFicha = f; break; }
+
+            WorkLocation chosenColegio = null;
+            for (WorkLocation w : workLocations) if (w.getName().equalsIgnoreCase(colegioSel)) { chosenColegio = w; break; }
+
+            Map<String,String> meta = new HashMap<>();
+            meta.put("tipoReporte", "ESPECIALISTA");
+            meta.put("tipoFicha", tipoSel);
+            meta.put("area", areaSel == null ? "" : areaSel);
+            meta.put("nombreFicha", fichaSel == null ? "" : fichaSel);
+            meta.put("colegio", colegioSel == null ? "" : colegioSel);
+            meta.put("mes", mesSel == null ? "" : mesSel);
+            meta.put("ano", anoSel == null ? "" : anoSel);
+            meta.put("generado_por", especialistaName != null ? especialistaName : "");
+            meta.put("fecha_generacion", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date()));
+
+            generateReportBackground(meta, chosenFicha, chosenColegio);
+            dlg.dismiss();
+        });
+
+        dlg.show();
+    }
+
+    // EVIDENCIAS
     private void showEvidenciaDialog() {
         View dialogView = LayoutInflater
                 .from(this)
@@ -582,16 +841,9 @@ public class EspecialistaActivity extends BaseRoleActivity {
      * Retorna el WorkLocation más cercano a loc, o null si supera MAX_DISTANCE_M.
      * También actualiza colegioLocalizado, colegioId y colegioInfo.
      */
-    // Reemplazar findNearest(Location loc)
-    private WorkLocation findNearest(Location loc) {
+    // Nuevo: busca y actualiza colegioLocalizado/colegioId/colegioInfo sin verificar MAX_DISTANCE_M
+    private WorkLocation findNearestAllowAnyDistance(Location loc) {
         if (loc == null) return null;
-
-        // Filtrar por precisión y edad
-        float accuracy = loc.hasAccuracy() ? loc.getAccuracy() : Float.MAX_VALUE;
-        long ageMs = System.currentTimeMillis() - loc.getTime();
-        if (accuracy > 50.0f || ageMs > 10_000L) {
-            Log.d("FETCH_ERROR", "Location precision");
-        }
 
         WorkLocation bestW = null;
         double bestD = Double.MAX_VALUE;
@@ -604,7 +856,7 @@ public class EspecialistaActivity extends BaseRoleActivity {
             }
         }
 
-        if (bestW != null && bestD <= MAX_DISTANCE_M) {
+        if (bestW != null) {
             colegioLocalizado = bestW.getName();
             colegioId        = bestW.getIdcolegio();
             colegioInfo = new ColegioInfo(
@@ -619,9 +871,86 @@ public class EspecialistaActivity extends BaseRoleActivity {
                     bestW.getIdcolegio(),
                     bestW.getNombreDirector()
             );
-            return bestW;
         }
-        return null;
+        return bestW;
+    }
+
+    private void recaptureLocationAfterPermission() {
+        if (isRecapturing) return;
+        if (!hasLocationPermission()) return;
+        if (!isLocationProviderEnabled()) return;
+        isRecapturing = true;
+
+        final LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        final android.location.LocationListener warmListener = new android.location.LocationListener() {
+            @Override public void onLocationChanged(Location location) {}
+            @Override public void onStatusChanged(String provider, int status, Bundle extras) {}
+            @Override public void onProviderEnabled(String provider) {}
+            @Override public void onProviderDisabled(String provider) {}
+        };
+
+        try {
+            try { lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0f, warmListener); } catch (SecurityException ignored) {}
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                getBestLocation(8000L, bestLoc -> {
+                    try { lm.removeUpdates(warmListener); } catch (Exception ignored) {}
+                    isRecapturing = false;
+                    if (bestLoc != null) {
+                        findNearestAllowAnyDistance(bestLoc);
+                        runOnUiThread(() -> Toast.makeText(EspecialistaActivity.this, "Ubicación GPS obtenida", Toast.LENGTH_SHORT).show());
+                    } else {
+                        runOnUiThread(() -> Toast.makeText(EspecialistaActivity.this, "No se obtuvo ubicación GPS precisa. Intente nuevamente.", Toast.LENGTH_LONG).show());
+                    }
+                });
+            }, 1200L);
+        } catch (Throwable t) {
+            isRecapturing = false;
+            try { lm.removeUpdates(warmListener); } catch (Exception ignored) {}
+        }
+    }
+
+    private boolean hasConsentForRole(String key) {
+        return getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getBoolean(key, false);
+    }
+
+    private void setConsentForRole(String key, boolean value) {
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .putBoolean(key, value)
+                .apply();
+    }
+
+    private List<Ficha> filterFichasByTipo(String tipoFichaFilter) {
+        List<Ficha> out = new ArrayList<>();
+        if (fichas == null) return out;
+        for (Ficha f : fichas) {
+            if (f == null) continue;
+            String tipo = f.getTipoFicha() != null ? f.getTipoFicha().trim() : "";
+            if (tipo.equalsIgnoreCase(tipoFichaFilter)) {
+                out.add(f);
+            }
+        }
+        return out;
+    }
+
+    private List<Ficha> filterFichasForDialog(String tipoFichaFilter, String areaFilter) {
+        List<Ficha> out = new ArrayList<>();
+        if (fichas == null) return out;
+        for (Ficha f : fichas) {
+            if (f == null) continue;
+            String tipo = f.getTipoFicha() != null ? f.getTipoFicha().trim() : "";
+            String area = f.getArea() != null ? f.getArea().trim() : "";
+            if (tipo.equalsIgnoreCase(tipoFichaFilter)) {
+                if (tipoFichaFilter.equalsIgnoreCase("Docente")) {
+                    out.add(f); // area ignored
+                } else {
+                    if (areaFilter == null || areaFilter.isEmpty() || area.equalsIgnoreCase(areaFilter)) {
+                        out.add(f);
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     private boolean hasLocationPermission() {
@@ -636,6 +965,12 @@ public class EspecialistaActivity extends BaseRoleActivity {
                 new String[]{ Manifest.permission.ACCESS_FINE_LOCATION },
                 REQUEST_LOCATION_PERMISSION
         );
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION);
+        } else {
+            recaptureLocationAfterPermission();
+        }
     }
 
     private void dispatchCameraIntent() {
@@ -667,11 +1002,605 @@ public class EspecialistaActivity extends BaseRoleActivity {
         //serviceStarted = true;
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        providersChangeReceiver = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context context, android.content.Intent intent) {
+                if (intent == null) return;
+                String action = intent.getAction();
+                if (android.location.LocationManager.PROVIDERS_CHANGED_ACTION.equals(action)
+                        || android.location.LocationManager.MODE_CHANGED_ACTION.equals(action)) {
+                    boolean gpsEnabled = isLocationProviderEnabled();
+                    if (gpsEnabled != lastGpsEnabledState) {
+                        lastGpsEnabledState = gpsEnabled;
+                        if (!gpsEnabled) {
+                            showGpsProblemToast("Servicios de ubicación desactivados. Active GPS en Ajustes.");
+                        } else {
+                            runOnUiThread(() -> Toast.makeText(EspecialistaActivity.this, "GPS activado", Toast.LENGTH_SHORT).show());
+                        }
+                    }
+                }
+            }
+        };
+
+        android.content.IntentFilter filter = new android.content.IntentFilter();
+        filter.addAction(LocationManager.PROVIDERS_CHANGED_ACTION);
+        filter.addAction(LocationManager.MODE_CHANGED_ACTION);
+        registerReceiver(providersChangeReceiver, filter);
+
+        lastGpsEnabledState = isLocationProviderEnabled();
+        lastPermissionState = hasLocationPermission();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        boolean currentPermission = hasLocationPermission();
+        boolean currentGps = isLocationProviderEnabled();
+
+        if (currentPermission != lastPermissionState) {
+            if (currentPermission) {
+                recaptureLocationAfterPermission();
+            } else {
+                runOnUiThread(() -> Toast.makeText(this, "Permiso de ubicación revocado. Conceda en Ajustes.", Toast.LENGTH_LONG).show());
+            }
+            lastPermissionState = currentPermission;
+        }
+
+        if (currentGps != lastGpsEnabledState) {
+            lastGpsEnabledState = currentGps;
+            if (!currentGps) {
+                showGpsProblemToast("Servicios de ubicación desactivados. Active GPS en Ajustes.");
+            } else {
+                runOnUiThread(() -> Toast.makeText(this, "GPS activado", Toast.LENGTH_SHORT).show());
+            }
+        }
+    }
+
     private void stopLocationUploadService() {
         if (!LocationUploadService.isRunning) return;
         Intent i = new Intent(this, LocationUploadService.class);
         stopService(i);
         //serviceStarted = false;
+    }
+
+    @Override
+    protected void onStop() {
+        try {
+            if (providersChangeReceiver != null) {
+                unregisterReceiver(providersChangeReceiver);
+                providersChangeReceiver = null;
+            }
+        } catch (Exception ignored) {}
+        super.onStop();
+    }
+
+    private void generateReportBackground(Map<String,String> meta, Ficha ficha, WorkLocation colegio) {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                final String fichaIdFilter = ficha != null ? ficha.getId() : safe(meta.get("idficha"));
+                final String mesFilter = safe(meta.get("mes"));
+                final String anoFilter = safe(meta.get("ano"));
+                final String colegioFilter = colegio != null ? colegio.getName() : safe(meta.get("colegio"));
+                final String especialistaFilter = safe(meta.get("generado_por").isEmpty() ? meta.get("especialista_nombre") : meta.get("generado_por"));
+                final String dniFiltro = docIdentidad != null ? docIdentidad : "";
+                final boolean isBoss = "42503725".equals(dniFiltro);
+
+                Map<String,String> params = new HashMap<>();
+                params.put("idficha", fichaIdFilter == null ? "" : fichaIdFilter);
+                params.put("mes", mesFilter);
+                params.put("ano", anoFilter);
+                params.put("colegio", colegioFilter);
+                params.put("especialista_nombre", especialistaFilter);
+                params.put("docidentidad", dniFiltro);
+                params.put("isBoss", String.valueOf(isBoss));
+
+                // 1) fetch submissions
+                org.json.JSONArray arr = null;
+                try { arr = fetchJsonArrayWithFallback(URLPostHelper.Fichas.LIST_SUBMISSIONS, params); } catch (Throwable t) { Log.d("FETCH_ERROR","LIST_SUBMISSIONS fetch error", t); }
+
+                List<Map<String,String>> submissions = new ArrayList<>();
+                if (arr != null) {
+                    for (int i = 0; i < arr.length(); i++) {
+                        org.json.JSONObject o = arr.optJSONObject(i);
+                        if (o == null) continue;
+                        Map<String,String> row = new LinkedHashMap<>();
+                        Iterator<String> keys = o.keys();
+                        while (keys.hasNext()) {
+                            String k = keys.next();
+                            row.put(k, o.optString(k, ""));
+                        }
+                        submissions.add(row);
+                    }
+                }
+
+                if (submissions.isEmpty()) {
+                    runOnUiThread(() -> Toast.makeText(EspecialistaActivity.this, "No se obtuvo respuesta del servidor (LIST_SUBMISSIONS)", Toast.LENGTH_LONG).show());
+                    return;
+                }
+
+                // 2) fetch questions catalog for ficha -> map idpregunta -> texto (and extras)
+                final Map<String, org.json.JSONObject> catalogById = new LinkedHashMap<>();
+                if (fichaIdFilter != null && !fichaIdFilter.isEmpty()) {
+                    try {
+                        Map<String,String> qParams = new HashMap<>();
+                        qParams.put("idficha", fichaIdFilter);
+
+                        org.json.JSONArray qArr = null;
+                        try {
+                            qArr = postJsonArrayRaw(URLPostHelper.Fichas.LIST_QUESTIONS, qParams);
+                            if (qArr == null || qArr.length() == 0) qArr = null;
+                        } catch (Throwable t) {
+                            qArr = null;
+                        }
+                        if (qArr == null) {
+                            try {
+                                qArr = fetchJsonArrayWithFallback(URLPostHelper.Fichas.LIST_QUESTIONS, qParams);
+                            } catch (Throwable t) {
+                                qArr = null;
+                            }
+                        }
+                        if (qArr != null) {
+                            for (int i = 0; i < qArr.length(); i++) {
+                                org.json.JSONObject qo = qArr.optJSONObject(i);
+                                if (qo == null) continue;
+                                String idp = safe(qo.optString("idpregunta", qo.optString("id", qo.optString("idPregunta", ""))));
+                                if (idp == null) idp = "";
+                                catalogById.put(idp, qo);
+                            }
+                        } else {
+                            Log.d("FETCH_ERROR","LIST_QUESTIONS returned null for idficha=" + fichaIdFilter);
+                        }
+                    } catch (Throwable t) {
+                        Log.d("FETCH_ERROR","Error fetching LIST_QUESTIONS for idficha=" + fichaIdFilter, t);
+                    }
+                } else {
+                    Log.d("FETCH_ERROR","No fichaIdFilter available for LIST_QUESTIONS");
+                }
+
+                // 3) filter submissions locally (same previous rules)
+                List<Map<String,String>> filtered = new ArrayList<>();
+                for (Map<String,String> s : submissions) {
+                    if (s == null) continue;
+                    if (fichaIdFilter != null && !fichaIdFilter.isEmpty()) {
+                        String v = safe(s.get("idficha"));
+                        if (!fichaIdFilter.equals(String.valueOf(v))) continue;
+                    }
+                    if (colegioFilter != null && !colegioFilter.isEmpty()) {
+                        String v = safe(s.get("colegio"));
+                        if (!v.equalsIgnoreCase(colegioFilter)) continue;
+                    }
+                    if (mesFilter != null && !mesFilter.isEmpty() && anoFilter != null && !anoFilter.isEmpty()) {
+                        String fecha = safe(s.get("fecha_envio"));
+                        if (fecha.length() >= 7) {
+                            String monthNum = getMonthNumber(mesFilter);
+                            String prefix = anoFilter + "-" + monthNum;
+                            if (!fecha.startsWith(prefix)) continue;
+                        } else continue;
+                    }
+                    if (especialistaFilter != null && !especialistaFilter.isEmpty() && !isBoss) {
+                        String v = safe(s.get("especialista_nombre"));
+                        if (!v.equalsIgnoreCase(especialistaFilter)) continue;
+                    }
+                    if (!isBoss) {
+                        String vdoc = safe(s.get("docidentidad"));
+                        String vesp = safe(s.get("especialista_dni"));
+                        if (!dniFiltro.equals(vdoc) && !dniFiltro.equals(vesp)) continue;
+                    }
+                    filtered.add(s);
+                }
+
+                if (filtered.isEmpty()) {
+                    runOnUiThread(() -> Toast.makeText(EspecialistaActivity.this, "No hay encabezados que cumplan los filtros aplicados", Toast.LENGTH_LONG).show());
+                    return;
+                }
+
+                // 4) build blocks: use catalogById exclusively for Pregunta.textoPregunta
+                List<Map<String,Object>> blocks = new ArrayList<>();
+                for (Map<String,String> sub : filtered) {
+                    try {
+                        Map<String,String> submissionMeta = new LinkedHashMap<>();
+                        if (meta != null) submissionMeta.putAll(meta);
+                        submissionMeta.putAll(sub);
+                        if (isBoss) {
+                            String especialistaNombreEnEnc = safe(submissionMeta.get("especialista_nombre"));
+                            if (!especialistaNombreEnEnc.isEmpty()) submissionMeta.put("especialista_realizo", especialistaNombreEnEnc);
+                        }
+                        String encabezadoId = !safe(submissionMeta.get("encabezado_id")).isEmpty() ? submissionMeta.get("encabezado_id") : safe(submissionMeta.get("id"));
+
+                        // fetch respuestas for this encabezado
+                        Map<String,String> respuestasMap = new LinkedHashMap<>();
+                        if (encabezadoId != null && !encabezadoId.isEmpty()) {
+                            String url = String.format(URLPostHelper.Fichas.LIST_RESPONSES, java.net.URLEncoder.encode(encabezadoId, "UTF-8"));
+                            org.json.JSONArray rarr = null;
+                            try { rarr = fetchJsonArrayWithFallback(url, null); } catch (Throwable t) { Log.d("FETCH_ERROR","LIST_RESPONSES fetch error for " + encabezadoId, t); }
+                            if (rarr != null) {
+                                for (int j = 0; j < rarr.length(); j++) {
+                                    org.json.JSONObject ro = rarr.optJSONObject(j);
+                                    if (ro == null) continue;
+
+                                    // Prefer server-provided idpregunta (the real question id).
+                                    // Fallback to response id if idpregunta missing.
+                                    String idpreg = safe(ro.optString("idpregunta", ""));
+                                    String respId = String.valueOf(ro.optInt("id", 0));
+                                    String rid;
+                                    if (!idpreg.isEmpty()) {
+                                        rid = idpreg; // use question id as key part
+                                    } else if (!"0".equals(respId) && !respId.isEmpty()) {
+                                        rid = respId;
+                                    } else {
+                                        rid = String.valueOf(System.currentTimeMillis()) + "_" + j;
+                                    }
+
+                                    String rawPregunta = safe(ro.optString("pregunta_texto"));
+                                    String rawText = safe(ro.optString("respuesta_texto"));
+                                    String rawComment = safe(ro.optString("comentario"));
+                                    String rawFoto = safe(ro.optString("foto"));
+
+                                    if ("0".equals(rawText) || "null".equalsIgnoreCase(rawText)) rawText = "";
+                                    if ("0".equals(rawComment) || "null".equalsIgnoreCase(rawComment)) rawComment = "";
+                                    if ("0".equals(rawFoto) || "null".equalsIgnoreCase(rawFoto)) rawFoto = "";
+                                    if ("0".equals(rawPregunta) || "null".equalsIgnoreCase(rawPregunta)) rawPregunta = "";
+
+                                    // Store both by question id (preferred) and by response unique id (if available),
+                                    // and include which encabezado the response belongs to so downstream consumers can trace it.
+                                    respuestasMap.put("q_" + rid + "_pregunta", rawPregunta);
+                                    respuestasMap.put("q_" + rid + "_text", rawText);
+                                    respuestasMap.put("q_" + rid + "_comentario", rawComment);
+                                    respuestasMap.put("q_" + rid + "_foto", rawFoto);
+
+                                    // Keep original response id (if there is one) under a stable key so you can trace server row
+                                    if (!respId.equals("0") && !respId.isEmpty()) {
+                                        respuestasMap.put("respid_" + respId + "_encabezado", encabezadoId);
+                                        respuestasMap.put("respid_" + respId + "_pregunta_id", idpreg);
+                                        respuestasMap.put("respid_" + respId + "_text", rawText);
+                                    }
+
+                                    // Also record mapping from question id -> encabezado for quick lookup when idpregunta present
+                                    if (!idpreg.isEmpty()) {
+                                        respuestasMap.put("q_" + idpreg + "_encabezado", encabezadoId);
+                                    } else {
+                                        // if idpreg missing, keep a marker that this response (by respId) belongs to encabezado
+                                        respuestasMap.put("q_" + rid + "_encabezado", encabezadoId);
+                                    }
+                                }
+                            }
+                        } else {
+                            Log.d("FETCH_ERROR","submission without encabezadoId: " + submissionMeta);
+                        }
+
+                        // Build Pregunta list from catalogById (ONLY)
+                        List<com.ugelcorongo.edugestin360.domain.models.Pregunta> preguntasList = new ArrayList<>();
+                        for (Map.Entry<String, org.json.JSONObject> ent : catalogById.entrySet()) {
+                            String qid = ent.getKey();
+                            org.json.JSONObject qo = ent.getValue();
+                            if (qo == null) continue;
+
+                            String qtexto = safe(qo.optString("texto", qo.optString("texto_pregunta", qo.optString("pregunta_texto", ""))));
+                            String seccion = safe(qo.optString("seccion", qo.optString("seccion_nombre", "")));
+                            String tipoPregunta = safe(qo.optString("tipo", qo.optString("tipoPregunta", "")));
+                            boolean requiereComentario = qo.has("requiereComentario")
+                                    ? qo.optInt("requiereComentario", qo.optInt("requiere_comentario", 0)) == 1
+                                    : qo.optInt("requiere_comentario", 0) == 1;
+                            boolean requiereFoto = qo.has("requiereFoto")
+                                    ? qo.optInt("requiereFoto", qo.optInt("requiere_foto", 0)) == 1
+                                    : qo.optInt("requiere_foto", 0) == 1;
+
+                            com.ugelcorongo.edugestin360.domain.models.Pregunta p = new com.ugelcorongo.edugestin360.domain.models.Pregunta();
+                            p.setIdFicha(fichaIdFilter);
+                            p.setTipoFicha(ficha != null ? ficha.getTipoFicha() : safe(meta.get("tipoFicha")));
+                            p.setIdPregunta(qid);
+                            p.setTextoPregunta(qtexto == null ? "" : qtexto);
+                            p.setSeccion(seccion);
+                            p.setTipoPregunta(tipoPregunta);
+                            p.setRequiereComentario(requiereComentario);
+                            p.setRequiereFoto(requiereFoto);
+                            p.setOpciones(new ArrayList<>());
+
+                            preguntasList.add(p);
+                        }
+
+                        // If catalog empty, optional fallback: build from respuestasMap (not preferred)
+                        if (catalogById.isEmpty()) {
+                            Set<String> seen = new LinkedHashSet<>();
+                            for (String rk : respuestasMap.keySet()) {
+                                if (!rk.endsWith("_pregunta")) continue;
+                                int idx = rk.indexOf("_pregunta");
+                                if (idx <= 2) continue;
+                                String qid = rk.substring(2, idx);
+                                if (seen.contains(qid)) continue;
+                                seen.add(qid);
+                                String qtextFromResp = respuestasMap.get(rk);
+                                com.ugelcorongo.edugestin360.domain.models.Pregunta p = new com.ugelcorongo.edugestin360.domain.models.Pregunta();
+                                p.setIdFicha(fichaIdFilter);
+                                p.setIdPregunta(qid);
+                                p.setTextoPregunta(qtextFromResp == null ? "" : qtextFromResp);
+                                p.setOpciones(new ArrayList<>());
+                                preguntasList.add(p);
+                            }
+                        }
+
+                        Map<String,Object> block = new LinkedHashMap<>();
+                        block.put("meta", submissionMeta);
+                        block.put("preguntas", preguntasList);
+                        block.put("respuestas", respuestasMap);
+                        block.put("chartBitmap", null);
+                        blocks.add(block);
+                    } catch (Throwable t) {
+                        Log.d("FETCH_ERROR","exception processing submission", t);
+                    }
+                }
+
+                // 5) generar PDF
+                File out = null;
+                try {
+                    out = com.ugelcorongo.edugestin360.managers.reports.ReportGenerator.generateMultiFichaPdfReport(EspecialistaActivity.this, meta, blocks);
+                } catch (Throwable t) {
+                    Log.d("FETCH_ERROR","error generating pdf", t);
+                }
+
+                if (out != null) {
+                    lastGeneratedReportPath = out.getAbsolutePath();
+                    if (androidx.core.app.NotificationManagerCompat.from(EspecialistaActivity.this).areNotificationsEnabled()) {
+                        ensureNotificationChannel();
+                        notifyReportGenerated(out);
+                    }
+                    File f = out;
+                    runOnUiThread(() -> Toast.makeText(EspecialistaActivity.this, "Reporte generado: " + f.getName(), Toast.LENGTH_LONG).show());
+                } else {
+                    runOnUiThread(() -> Toast.makeText(EspecialistaActivity.this, "No se pudo generar ningún PDF", Toast.LENGTH_LONG).show());
+                }
+
+            } catch (final Exception ex) {
+                Log.d("FETCH_ERROR","fatal exception generateReportBackground", ex);
+                runOnUiThread(() -> Toast.makeText(EspecialistaActivity.this, "Error generando reporte", Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
+    private org.json.JSONArray fetchJsonArrayWithFallback(String urlString, Map<String,String> postParams) throws Exception {
+        if (postParams != null && !postParams.isEmpty()) {
+            try {
+                org.json.JSONArray arr = postJsonArrayRaw(urlString, postParams);
+                if (arr != null && arr.length() > 0) return arr;
+            } catch (Throwable ignored) {}
+        }
+        try {
+            org.json.JSONArray arrGet = getJsonArrayRaw(urlString);
+            if (arrGet != null && arrGet.length() > 0) return arrGet;
+        } catch (Throwable ignored) {}
+        // última oportunidad: GET y buscar array en body or in keys data/rows/result
+        java.net.HttpURLConnection conn = null;
+        try {
+            java.net.URL url = new java.net.URL(urlString);
+            conn = (java.net.HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(15000);
+            int code = conn.getResponseCode();
+            java.io.InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
+            if (is == null) return null;
+            java.util.Scanner s = new java.util.Scanner(is, "UTF-8").useDelimiter("\\A");
+            String body = s.hasNext() ? s.next() : "";
+            is.close();
+            if (body == null || body.trim().isEmpty()) return null;
+            try { return new org.json.JSONArray(body); } catch (org.json.JSONException ex) {
+                try {
+                    org.json.JSONObject obj = new org.json.JSONObject(body);
+                    if (obj.has("data") && obj.get("data") instanceof org.json.JSONArray) return obj.getJSONArray("data");
+                    if (obj.has("rows") && obj.get("rows") instanceof org.json.JSONArray) return obj.getJSONArray("rows");
+                    if (obj.has("result") && obj.get("result") instanceof org.json.JSONArray) return obj.getJSONArray("result");
+                } catch (org.json.JSONException ex2) { return null; }
+            }
+        } finally { if (conn != null) conn.disconnect(); }
+        return null;
+    }
+
+    private JSONArray postJsonArrayRaw(String urlString, Map<String,String> params) throws Exception {
+        java.net.URL url = new java.net.URL(urlString);
+        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+        try {
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(15000);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+
+            StringBuilder body = new StringBuilder();
+            boolean first = true;
+            for (Map.Entry<String,String> e : params.entrySet()) {
+                if (!first) body.append("&");
+                first = false;
+                body.append(java.net.URLEncoder.encode(e.getKey(), "UTF-8"));
+                body.append("=");
+                body.append(java.net.URLEncoder.encode(e.getValue() == null ? "" : e.getValue(), "UTF-8"));
+            }
+            byte[] out = body.toString().getBytes("UTF-8");
+            conn.setFixedLengthStreamingMode(out.length);
+            java.io.OutputStream os = conn.getOutputStream();
+            os.write(out);
+            os.flush();
+            os.close();
+
+            int code = conn.getResponseCode();
+            java.io.InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
+            if (is == null) return null;
+            java.util.Scanner s = new java.util.Scanner(is, "UTF-8").useDelimiter("\\A");
+            String resp = s.hasNext() ? s.next() : "";
+            is.close();
+            if (resp == null || resp.trim().isEmpty()) return null;
+            return new JSONArray(resp);
+        } finally { conn.disconnect(); }
+    }
+
+    private JSONArray getJsonArrayRaw(String urlString) throws Exception {
+        java.net.URL url = new java.net.URL(urlString);
+        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+        try {
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(15000);
+            int code = conn.getResponseCode();
+            java.io.InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
+            if (is == null) return null;
+            java.util.Scanner s = new java.util.Scanner(is, "UTF-8").useDelimiter("\\A");
+            String resp = s.hasNext() ? s.next() : "";
+            is.close();
+            if (resp == null || resp.trim().isEmpty()) return null;
+            return new org.json.JSONArray(resp);
+        } finally {
+            conn.disconnect();
+        }
+    }
+
+    private String getMonthNumber(String mesNombre) {
+        if (mesNombre == null) return "01";
+        String[] meses = new java.text.DateFormatSymbols(Locale.getDefault()).getMonths();
+        for (int i = 0; i < meses.length; i++) {
+            if (mesNombre.equalsIgnoreCase(meses[i])) return String.format("%02d", i + 1);
+        }
+        // intentar parse int
+        try {
+            int m = Integer.parseInt(mesNombre);
+            if (m >= 1 && m <= 12) return String.format("%02d", m);
+        } catch (Exception ignored) {}
+        return "01";
+    }
+
+    private void ensureNotificationChannel() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            CharSequence name = "Reportes";
+            String desc = "Notificaciones de reportes generados";
+            int importance = android.app.NotificationManager.IMPORTANCE_DEFAULT;
+            android.app.NotificationChannel chan = new android.app.NotificationChannel(REPORTS_CHANNEL_ID, name, importance);
+            chan.setDescription(desc);
+            android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm != null) nm.createNotificationChannel(chan);
+        }
+    }
+
+    private void notifyReportGenerated(File file) {
+        ensureNotificationChannel();
+
+        // 1) obtener uri seguro
+        android.net.Uri uri;
+        try {
+            uri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".provider", file);
+        } catch (IllegalArgumentException e) {
+            uri = null;
+        }
+
+        // 2) determinar mime por extensión
+        String name = file.getName().toLowerCase(Locale.ROOT);
+        String mime = "application/octet-stream";
+        if (name.endsWith(".pdf")) mime = "application/pdf";
+        else if (name.endsWith(".xls") || name.endsWith(".xlsx")) mime = "application/vnd.ms-excel";
+        else if (name.endsWith(".csv")) mime = "text/csv";
+        else if (name.endsWith(".xml")) mime = "application/xml";
+
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        if (uri != null) {
+            intent.setDataAndType(uri, mime);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        } else {
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+
+        int flags = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+                ? android.app.PendingIntent.FLAG_IMMUTABLE
+                : android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+        android.app.PendingIntent pi = android.app.PendingIntent.getActivity(this, 0, intent, flags);
+
+        androidx.core.app.NotificationCompat.Builder nb =
+                new androidx.core.app.NotificationCompat.Builder(this, REPORTS_CHANNEL_ID)
+                        .setSmallIcon(R.mipmap.ic_launcher)
+                        .setContentTitle("Reporte generado")
+                        .setContentText(file.getName())
+                        .setAutoCancel(true)
+                        .setContentIntent(pi)
+                        .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT);
+
+        // permiso POST_NOTIFICATIONS (Android 13+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
+        }
+        androidx.core.app.NotificationManagerCompat.from(this).notify(REPORT_NOTIFICATION_ID, nb.build());
+    }
+
+    private void showPermissionApprovalDialog(String role, Runnable onAccepted) {
+        // role: "Especialista" o "DocenteDirector"
+        String url = URLPostHelper.Terminos.Info;
+        String title = "Permisos necesarios";
+        String message;
+        String prefKey;
+
+        if ("Especialista".equalsIgnoreCase(role)) {
+            message = "Autorizo que la aplicación mantenga acceso a mi ubicación mientras la aplicación esté activa, con el fin de facilitar funciones continuas como registro de asistencia. He leído y acepto los términos y condiciones.";
+            prefKey = KEY_CONSENT_ESPECIALISTA;
+        } else {
+            // Docente o Director
+            message = "Entiendo y acepto que la aplicación solicitará acceso a mi ubicación únicamente mientras realizo las funciones relacionadas (por ejemplo: registro de asistencia o monitoreo). He leído y acepto los términos y condiciones.";
+            prefKey = KEY_CONSENT_DOCENTE;
+        }
+
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message + "\n\nPara más información, consulte los términos y condiciones.")
+                .setPositiveButton("Aceptar", (d, w) -> {
+                    setConsentForRole(prefKey, true);
+                    onAccepted.run();
+                })
+                .setNeutralButton("Términos y condiciones del aplicativo", (d, w) -> {
+                    // Abrir URL
+                    Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    startActivity(i);
+                })
+                .setNegativeButton("Cancelar", (d, w) -> {
+                    d.dismiss();
+                    showPermissionRequiredDialog();
+                });
+
+        AlertDialog dlg = b.create();
+        dlg.show();
+    }
+
+    private void showPermissionRequiredDialog() {
+        String url = URLPostHelper.Terminos.Info;
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle("Permisos requeridos")
+                .setMessage("Es necesario los permisos para el uso de la aplicación.")
+                .setPositiveButton("Volver a los términos", (d, w) -> {
+                    Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    startActivity(i);
+                })
+                .setNegativeButton("Cerrar la aplicación", (d, w) -> {
+                    // Redirigir al login
+                    Intent i = new Intent(this, LoginActivity.class);
+                    i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                    finish();
+                });
+        b.setCancelable(false);
+        b.show();
+    }
+
+    private void ensureConsentAndRequestLocation(String role) {
+        String prefKey = "Docente".equalsIgnoreCase(role) || "Director".equalsIgnoreCase(role)
+                ? KEY_CONSENT_DOCENTE : KEY_CONSENT_ESPECIALISTA;
+
+        if (hasConsentForRole(prefKey)) {
+            requestLocationPermission();
+        } else {
+            showPermissionApprovalDialog(role, () -> {
+                requestLocationPermission();
+            });
+        }
     }
 
     private void checkAndRequestAllPermissionsPersistent() {
@@ -696,7 +1625,10 @@ public class EspecialistaActivity extends BaseRoleActivity {
 
         // Normal permissions granted -> check location provider state
         if (!isLocationProviderEnabled()) {
-            showPermissionsModal("La aplicación necesita estos permisos para funcionar:\n\n- Ubicación GPS\n- Cámara\n\nAdemás active los servicios de ubicación del dispositivo.", true);
+            showPermissionApprovalDialog("Especialista", () -> {
+                requestLocationPermission();
+            });
+            //showPermissionsModal("La aplicación necesita estos permisos para funcionar:\n\n- Ubicación GPS\n- Cámara\n\nAdemás active los servicios de ubicación del dispositivo.", true);
             return;
         }
 
@@ -724,6 +1656,9 @@ public class EspecialistaActivity extends BaseRoleActivity {
             if (fine && camera) {
                 // proceed to check provider and background
                 if (!isLocationProviderEnabled()) {
+                    showPermissionApprovalDialog("Especialista", () -> {
+                        requestLocationPermission();
+                    });
                     showPermissionsModal("La aplicación necesita estos permisos para funcionar:\n\n- Ubicación GPS\n- Cámara\n\nActive el GPS en Ajustes.", true);
                     return;
                 }
@@ -749,10 +1684,13 @@ public class EspecialistaActivity extends BaseRoleActivity {
             }
 
             if (anyPermanent) {
+                showPermissionApprovalDialog("Especialista", () -> {
+                    requestLocationPermission();
+                });
                 showPermissionsModal("La aplicación necesita estos permisos para funcionar:\n\n- Ubicación GPS\n- Cámara\n\nConceda permisos en Ajustes.", false);
             } else {
                 // re-request politely
-                showPermissionsModal("La aplicación necesita permisos de Ubicación y Cámara para continuar.", true);
+                //showPermissionsModal("La aplicación necesita permisos de Ubicación y Cámara para continuar.", true);
             }
             return;
         }
@@ -786,6 +1724,16 @@ public class EspecialistaActivity extends BaseRoleActivity {
         dlg.show();
     }
 
+    private void showGpsProblemToast(String reason) {
+        runOnUiThread(() -> {
+            Toast.makeText(
+                    EspecialistaActivity.this,
+                    "Problema GPS: " + reason,
+                    Toast.LENGTH_LONG
+            ).show();
+        });
+    }
+
     private void debugMissingPermissionsAndSettings() {
         List<String> missing = new ArrayList<>();
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -802,9 +1750,15 @@ public class EspecialistaActivity extends BaseRoleActivity {
         if (!gpsEnabled) sb.append("- Servicios de ubicación desactivados\n");
         if (sb.length() > 0) {
             // show modal listing missing items (exact text requested)
+
+            showPermissionApprovalDialog("Especialista", () -> {
+                requestLocationPermission();
+            });
             showPermissionsModal("La aplicación necesita estos permisos para funcionar:\n\n- Ubicación GPS\n- Cámara\n\nDebe activarlos para continuar", true);
         }
     }
+
+    private static String safe(String s) { return s == null ? "" : s; }
 
     private boolean isLocationProviderEnabled() {
         LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
@@ -816,7 +1770,8 @@ public class EspecialistaActivity extends BaseRoleActivity {
         return gps || network;
     }
 
-    private void openLocationSettings() {
+    @Override
+    protected void openLocationSettings() {
         Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
         startActivity(intent);
     }

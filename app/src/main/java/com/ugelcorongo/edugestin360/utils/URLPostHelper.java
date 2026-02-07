@@ -41,6 +41,7 @@ public class URLPostHelper {
         public static final String REGISTRAR = "https://ugelcorongo.pe/monitoreo/app/img/registrar_img.php";
         public static final String ACTUALIZAR = "https://ugelcorongo.com/api/imagen/actualizar";
         public static final String ELIMINAR = "https://ugelcorongo.com/api/imagen/eliminar";
+        public static final String IMG = "https://ugelcorongo.pe/monitoreo/app/ficha/uploads/";
     }
 
     public static class Fichas {
@@ -49,6 +50,10 @@ public class URLPostHelper {
         public static final String DocentesEnFichas = "https://ugelcorongo.pe/monitoreo/app/data/docentes_en_fichas.php?idFicha=%s&visita=%s";
         public static final String ACTUALIZAR = "https://ugelcorongo.com/api/ficha/actualizar";
         public static final String ELIMINAR = "https://ugelcorongo.com/api/ficha/eliminar";
+        public static final String LIST_SUBMISSIONS = "https://ugelcorongo.pe/monitoreo/app/ficha/list_submissions.php";
+        public static final String LIST_RESPONSES = "https://ugelcorongo.pe/monitoreo/app/ficha/list_responses.php?encabezado_id=%s";
+        public static final String LIST_QUESTIONS = "https://ugelcorongo.pe/monitoreo/app/ficha/listar_preguntas_por_ficha.php";
+        public static final String LIST_QUESTIONS_GET = "https://ugelcorongo.pe/monitoreo/app/ficha/listar_preguntas_por_ficha_get.php?idficha=%s";
     }
 
     public static class Coordenadas {
@@ -67,6 +72,10 @@ public class URLPostHelper {
 
     public static class Preguntas {
         public static final String VER = "https://ugelcorongo.pe/monitoreo/app/ficha/datapreguntas.php";
+    }
+
+    public static class Terminos {
+        public static final String Info = "https://docs.google.com/document/d/1KC8OlxK7tRs1FLX5EQJeWNRnHv4nM_vG/edit?usp=drive_link&ouid=111126020909884026673&rtpof=true&sd=true";
     }
 
     public static class Respuestas {

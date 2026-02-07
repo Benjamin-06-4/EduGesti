@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public abstract class BaseRoleActivity extends AppCompatActivity {
+public abstract class BaseRoleActivity extends BasePermissionActivity {
 
     /** Mapa <nombreArchivo, URLHelper...()> específico de cada rol */
     protected abstract Map<String, String> getFileUrlMapping();
